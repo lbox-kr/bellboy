@@ -9,6 +9,7 @@
   --primary-hover: #2c7575;
   --danger: #dc2626;
   --danger-hover: #b91c1c;
+  --warn: #b45309;
   --success: #10b981;
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
@@ -27,6 +28,8 @@
     --text-muted: #9ca3af;
     --primary: #5eb3b3;
     --primary-hover: #7bc6c6;
+    --danger: #f87171;
+    --warn: #fbbf24;
   }
 }
 
@@ -395,6 +398,34 @@ button:disabled {
   outline: 2px solid var(--primary);
   outline-offset: -1px;
   border-color: var(--primary);
+}
+
+/* Validation */
+.field-error,
+.field-warn {
+  font-size: 12px;
+  line-height: 1.4;
+}
+.field-error {
+  color: var(--danger);
+}
+.field-warn {
+  color: var(--warn);
+}
+input.invalid,
+input.invalid:focus {
+  border-color: var(--danger);
+  outline-color: var(--danger);
+}
+.rule-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  /* Align with the path input, which sits after the 110px kind select + 6px gap. */
+  padding: 2px 0 0 116px;
+}
+.rule-messages.env-messages {
+  padding-left: 0;
 }
 
 /* Rule list */
