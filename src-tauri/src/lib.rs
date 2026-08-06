@@ -7,6 +7,7 @@ mod caddyfile;
 mod config_store;
 mod dns;
 mod hosts;
+mod migrate;
 mod model;
 mod node_env;
 mod system_trust;
