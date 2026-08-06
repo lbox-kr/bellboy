@@ -1,6 +1,6 @@
 [package]
 name = "bellboy"
-version = "0.1.0"
+version = "0.1.1"
 description = "A Caddy-based local proxy manager for macOS"
 edition = "2021"
 rust-version = "1.77"
