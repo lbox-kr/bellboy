@@ -374,6 +374,7 @@ export default function App() {
       {editing && (
         <SiteDialog
           site={editing}
+          otherSites={config.sites.filter((s) => s.id !== editing.id)}
           onSave={handleSaveSite}
           onCancel={() => setEditing(null)}
         />

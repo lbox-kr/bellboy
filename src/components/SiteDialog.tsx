@@ -1,17 +1,38 @@
 import { useState } from 'react'
 import type { Rule, Site } from '../types'
+import {
+  hasError,
+  issuesFor,
+  issuesUnder,
+  normalizeDomain,
+  normalizeTarget,
+  validateSite,
+} from '../validation'
+import { FieldIssues } from './FieldIssues'
 import { RuleEditor } from './RuleEditor'
 
 type Props = {
   site: Site
+  /** Every other site — used to reject a domain that is already registered. */
+  otherSites: Site[]
   onSave: (site: Site) => void
   onCancel: () => void
 }
 
-export function SiteDialog({ site, onSave, onCancel }: Props) {
+export function SiteDialog({ site, otherSites, onSave, onCancel }: Props) {
   const [draft, setDraft] = useState<Site>(site)
+  const [domainCleaned, setDomainCleaned] = useState(false)
 
-  const isValid = draft.domain.trim().length > 0 && draft.upstream.trim().length > 0
+  const issues = validateSite(draft, otherSites)
+  const isValid = !hasError(issues)
+
+  const handleDomainChange = (raw: string) => {
+    const normalized = normalizeDomain(raw)
+    // Pasting a full URL is common; strip the scheme / trailing slash rather
+    // than blocking, but say so — a silent edit reads as a bug.
+    setDomainCleaned(normalized !== raw.trim().toLowerCase())
+    setDraft({ ...draft, domain: normalized })
+  }
 
   const addRule = () => {
     const newRule: Rule = { kind: 'proxy', path: '/api/*', target: 'localhost:8080' }
@@ -27,6 +48,9 @@ export function SiteDialog({ site, onSave, onCancel }: Props) {
     setDraft({ ...draft, rules: draft.rules.filter((_, i) => i !== index) })
   }
 
+  const fieldClass = (field: string) =>
+    issuesFor(issues, field).some((i) => i.level === 'error') ? 'invalid' : undefined
+
   return (
     <div className="dialog-backdrop" onClick={onCancel}>
       <div className="dialog" onClick={(e) => e.stopPropagation()}>
@@ -41,10 +65,17 @@ export function SiteDialog({ site, onSave, onCancel }: Props) {
               type="text"
               value={draft.domain}
               placeholder="myapp.test"
-              onChange={(e) => setDraft({ ...draft, domain: e.target.value.trim() })}
+              onChange={(e) => handleDomainChange(e.target.value)}
+              className={fieldClass('domain')}
               autoFocus
             />
-            <span className="field-hint">도메인은 /etc/hosts 에 자동 등록됩니다.</span>
+            <span className="field-hint">
+              스킴·포트 없이 호스트만 입력하세요. /etc/hosts 에 자동 등록됩니다.
+            </span>
+            {domainCleaned && (
+              <span className="field-warn">붙여넣은 주소에서 스킴·끝 슬래시를 제거했습니다.</span>
+            )}
+            <FieldIssues issues={issuesFor(issues, 'domain')} />
           </label>
 
           <label className="field">
@@ -53,9 +84,15 @@ export function SiteDialog({ site, onSave, onCancel }: Props) {
               type="text"
               value={draft.upstream}
               placeholder="localhost:3000"
-              onChange={(e) => setDraft({ ...draft, upstream: e.target.value.trim() })}
+              onChange={(e) => setDraft({ ...draft, upstream: e.target.value })}
+              onBlur={(e) => setDraft({ ...draft, upstream: normalizeTarget(e.target.value) })}
+              className={fieldClass('upstream')}
             />
-            <span className="field-hint">규칙에 매칭되지 않는 모든 요청이 이리로 갑니다.</span>
+            <span className="field-hint">
+              규칙에 매칭되지 않는 모든 요청이 이리로 갑니다. 로컬은 포트가 필요하고
+              (<code>localhost:3000</code>), 원격은 스킴이 필요합니다 (<code>https://api.example.com</code>).
+            </span>
+            <FieldIssues issues={issuesFor(issues, 'upstream')} />
           </label>
 
           <div className="field">
@@ -74,6 +111,7 @@ export function SiteDialog({ site, onSave, onCancel }: Props) {
                     <RuleEditor
                       key={i}
                       rule={rule}
+                      issues={issuesUnder(issues, `rules[${i}]`)}
                       onChange={(r) => updateRule(i, r)}
                       onRemove={() => removeRule(i)}
                     />
