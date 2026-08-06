@@ -28,6 +28,18 @@
 
 `Bellboy_aarch64.zip` 은 Tauri 가 만들지 않으므로 워크플로가 `.app` 을 `ditto` 로 압축해 생성한다.
 
+## 코드 서명
+
+`tauri.conf.json` 의 `bundle.macOS.signingIdentity: "-"` 로 **ad-hoc 서명**한다.
+Developer ID 서명·공증은 하지 않는다(Apple Developer 계정 필요).
+
+설정이 없으면 링커가 붙인 최소 ad-hoc 서명만 남아 `Sealed Resources=none` 상태가 되고,
+Gatekeeper 가 번들 검증에 실패해 **"앱이 손상되었습니다"** 로 차단한다 —
+미서명 앱의 "확인되지 않은 개발자" 경고보다 강한 차단이라 우클릭 → 열기로도 우회되지 않는다.
+
+ad-hoc 서명이 있으면 그 차단이 "확인되지 않은 개발자" 경고로 내려가고, 우클릭 → 열기나
+README 의 `xattr -dr com.apple.quarantine` 로 통과할 수 있다.
+
 ## 결정 히스토리
 
 - **2026-08-06** — Intel(`macos-13`) 매트릭스 제거. v0.1.0 run 에서 arm64 는 4분에 성공했지만
@@ -40,5 +52,8 @@
 - **2026-08-06** — bump 워크플로가 Release 를 `workflow_call` 로 직접 호출한다.
   `GITHUB_TOKEN` 으로 푸시한 태그는 `push` 이벤트를 트리거하지 않기 때문에,
   태그만 밀고 끝내면 빌드가 돌지 않는다.
+- **2026-08-06** — `signingIdentity: "-"` 추가. v0.1.3 을 설치해보니 macOS 가 "손상되었습니다"로
+  차단했다. `spctl` 판정은 `code has no resources but signature indicates they must be present`,
+  `codesign` 은 `adhoc,linker-signed` / `Sealed Resources=none` 이었다. v0.1.0 부터 같은 상태였다.
 - **2026-08-06** — CHANGELOG.md 는 두지 않는다. 커밋이 Conventional Commits 형식이라
   `generate_release_notes` 로 충분하고, 릴리즈 페이지가 버전 기록 역할을 한다.
