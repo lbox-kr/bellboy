@@ -25,3 +25,6 @@ pnpm-debug.log*
 # tauri
 src-tauri/target
 src-tauri/gen
+
+# claude code
+.claude/settings.local.json
