@@ -454,6 +454,15 @@ input.invalid:focus {
 .rule-path,
 .rule-value {
   font-family: ui-monospace, SFMono-Regular, 'Cascadia Mono', monospace;
+  /* Grid items default to min-width:auto, so these inputs refuse to shrink
+     below their intrinsic width and the row overflows — pushing the × button
+     outside the dialog once the scrollbar claims 15px. */
+  min-width: 0;
+}
+/* A <select> has a different intrinsic height than an <input>; stretch it to
+   the row so all three controls line up. */
+.rule-kind {
+  align-self: stretch;
 }
 .rule-value.muted {
   color: var(--text-muted);
