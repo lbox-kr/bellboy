@@ -77,7 +77,7 @@ fn render_rule(
         Rule::Proxy { path, target, .. } => render_proxy(out, path, target, managed, resolved),
         Rule::Static { path, root } => {
             let _ = writeln!(out, "\thandle {} {{", path);
-            let _ = writeln!(out, "\t\troot * {}", root);
+            let _ = writeln!(out, "\t\troot * {}", quote_if_needed(&expand_home(root)));
             out.push_str("\t\tfile_server\n");
             out.push_str("\t}\n");
         }
@@ -104,11 +104,10 @@ fn render_proxy(
         // which is pinned to 127.0.0.1 in /etc/hosts. We substitute the real
         // external IP (resolved out-of-band) and preserve the original Host
         // header / SNI so the upstream keeps routing correctly.
-        let scheme = if parsed.scheme.is_empty() {
-            "https://"
-        } else {
-            parsed.scheme.as_str()
-        };
+        //
+        // The scheme is taken verbatim — `validate` requires one on any remote
+        // target, so there is nothing to guess here.
+        let scheme = parsed.scheme.as_str();
         let ip = resolved
             .get(&parsed.host)
             .and_then(|v| v.clone())
@@ -124,10 +123,32 @@ fn render_proxy(
         out.push_str("\t\t\t}\n");
         out.push_str("\t\t}\n");
     } else {
-        let _ = writeln!(out, "\t\treverse_proxy {}", target);
+        // Emit the parsed form, not the raw string, so both branches agree on
+        // what a target means.
+        let _ = writeln!(out, "\t\treverse_proxy {}", parsed.render());
     }
 
     out.push_str("\t}\n");
+}
+
+/// Caddy does not expand `~`, so we do it here.
+fn expand_home(path: &str) -> String {
+    match path.strip_prefix("~/") {
+        Some(rest) => match std::env::var("HOME") {
+            Ok(home) => format!("{}/{}", home.trim_end_matches('/'), rest),
+            Err(_) => path.to_string(),
+        },
+        None => path.to_string(),
+    }
+}
+
+/// Caddyfile arguments containing whitespace must be quoted.
+fn quote_if_needed(value: &str) -> String {
+    if value.chars().any(char::is_whitespace) {
+        format!("\"{}\"", value.replace('"', "\\\""))
+    } else {
+        value.to_string()
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -135,6 +156,15 @@ struct ParsedTarget {
     scheme: String,
     host: String,
     port: Option<String>,
+}
+
+impl ParsedTarget {
+    fn render(&self) -> String {
+        match &self.port {
+            Some(p) => format!("{}{}:{}", self.scheme, self.host, p),
+            None => format!("{}{}", self.scheme, self.host),
+        }
+    }
 }
 
 fn parse_target(target: &str) -> ParsedTarget {
@@ -232,7 +262,7 @@ mod tests {
             enabled: true,
             rules: vec![Rule::Proxy {
                 path: "/api/*".into(),
-                target: "dev.lfind.io.kr".into(),
+                target: "https://dev.lfind.io.kr".into(),
                 envs: vec![],
             }],
         };
@@ -272,7 +302,7 @@ mod tests {
             enabled: true,
             rules: vec![Rule::Proxy {
                 path: "/api/*".into(),
-                target: "app.test".into(),
+                target: "https://app.test".into(),
                 envs: vec![],
             }],
         };
@@ -300,6 +330,30 @@ mod tests {
         let out = generate(&[site], no_resolver);
         assert!(out.contains("reverse_proxy localhost:8080"));
         assert!(!out.contains("header_up Host"));
+    }
+
+    #[test]
+    fn static_root_expands_home_and_quotes_spaces() {
+        let home = std::env::var("HOME").expect("HOME");
+        let site = Site {
+            id: "1".into(),
+            domain: "app.test".into(),
+            upstream: "localhost:3000".into(),
+            enabled: true,
+            rules: vec![
+                Rule::Static {
+                    path: "/a/*".into(),
+                    root: "~/project/public".into(),
+                },
+                Rule::Static {
+                    path: "/b/*".into(),
+                    root: "/Users/me/my project".into(),
+                },
+            ],
+        };
+        let out = generate(&[site], no_resolver);
+        assert!(out.contains(&format!("root * {}/project/public", home.trim_end_matches('/'))));
+        assert!(out.contains("root * \"/Users/me/my project\""));
     }
 
     #[test]

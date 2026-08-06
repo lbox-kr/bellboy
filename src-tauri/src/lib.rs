@@ -10,6 +10,7 @@ mod hosts;
 mod model;
 mod node_env;
 mod system_trust;
+mod validate;
 
 use caddy_process::CaddyState;
 use caddy_supervisor::{CaddySighting, ProcessInfo};
@@ -96,6 +97,10 @@ fn caddy_status(state: State<'_, AppState>) -> CmdResult<bool> {
 /// Persist config, rewrite Caddyfile, sync /etc/hosts, reload Caddy if running.
 #[tauri::command]
 async fn apply_config(config: Config, state: State<'_, AppState>) -> CmdResult<()> {
+    // Refuse before anything is persisted — a bad value here would surface as a
+    // Caddy reload failure or a silently ignored /etc/hosts line instead.
+    validate::validate_config(&config)?;
+
     config_store::save(&config).map_err(err)?;
 
     let caddyfile_text = build_caddyfile(&config);
