@@ -26,7 +26,16 @@ pub fn load() -> Result<Config> {
     if text.trim().is_empty() {
         return Ok(Config::default());
     }
-    serde_json::from_str(&text).context("parse config.json")
+    let mut config: Config = serde_json::from_str(&text).context("parse config.json")?;
+
+    // Older builds let proxy targets omit the scheme. Write back the one the
+    // old renderer inferred so validation doesn't reject a config the user
+    // never had a chance to fix. Persist it so this runs once; a failed write
+    // (read-only dir, etc.) is not worth failing the load over.
+    if crate::migrate::apply(&mut config) {
+        let _ = save(&config);
+    }
+    Ok(config)
 }
 
 pub fn save(config: &Config) -> Result<()> {
